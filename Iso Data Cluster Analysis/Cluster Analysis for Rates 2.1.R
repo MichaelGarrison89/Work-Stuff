@@ -12,7 +12,7 @@ load <- read.csv("2012-14 RT ISO Load.csv", header = TRUE) %>%
 
 load.clusters <- filter(load, Weekday == 1) %>%
                  select(DEMAND, Hour) %>%
-                 mutate(hour.dist = abs(12.5 - Hour)) %>%  # distance from noon
+                 mutate(hour.dist = abs(12.5 - Hour)) %>%  # distance from 12:30 P.M.
                  mutate(z.demand = (DEMAND - mean(DEMAND)) / sd(DEMAND)) %>%
                  mutate(z.hour = (hour.dist - mean(hour.dist)) / sd(hour.dist))
 
