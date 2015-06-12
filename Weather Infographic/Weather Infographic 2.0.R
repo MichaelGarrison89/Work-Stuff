@@ -9,37 +9,7 @@ library("gtools", lib.loc="C:/Program Files/R/R-3.1.3/library")
 library("scales", lib.loc="C:/Program Files/R/R-3.1.3/library")
 library("tidyr", lib.loc="C:/Program Files/R/R-3.1.3/library")
 library("dplyr", lib.loc="C:/Program Files/R/R-3.1.3/library")
-
-
-CalculateLagMean <- function(x, lag){
-  # Calculates a lagged moving average of the vector x.
-  #
-  # Args:
-  # x  : vector from which to calculate lagged mean
-  # lag: number of periods in the lagged mean
-  #
-  # Returns:
-  # A vector, means.vector, in which element i of means.vector shows the mean
-  # of elements i - lag - 1 through i - 1 of the original x vector. Elements 1
-  # through <lag> of means.vector are set to zero. For example, if the x vector
-  # were c(1, 2, 3, 4), and lag were 2, this function would return a vector
-  # equal to c(0, 0, 1.5, 2.5).
-  
-  
-  means.vector        <- vector(length=length(x))
-  means.vector[1:lag] <- 0
-  
-  for(i in 1:(length(x) - lag)){
-    means.vector[lag + i] <- mean(x[i:(lag + i - 1)])
-    
-    
-    
-  }
-  
-  
-  return(means.vector)
-  
-}
+library("zoo", lib.loc="C:/Program Files/R/R-3.1.3/library")
 
 # I pulled the following function from Hadley Whickam's GitHub. I'll use it at
 # the end to create the infographic.
@@ -51,7 +21,7 @@ vplayout <- function(x, y){
 }
 
 # We import the weather data, then clean it up a bit before adding temperature,
-# converting to fahrenheit, and adding cdd.65's and hdd.65's.
+# converting to Fahrenheit, and adding cdd.65's and hdd.65's.
 
 
 weather <- read.csv("Logan Since 1936.csv") %>%         
@@ -75,65 +45,35 @@ last.year          <- (last.day - 364):last.day
 
 # We want a data frame from the last 12 months.
 
-last.twelve <- data.frame(date = weather$date[last.year],
-                          min  = weather$min[last.year],
-                          max  = weather$max[last.year],
-                          precip = weather$PRCP[last.year],
-                          snow = weather$SNOW[last.year])
-
-last.twelve <- mutate(last.twelve, precip.trail = 
-                      CalculateLagMean(last.twelve$precip, 3))
-
-normal.temps <-  aggregate(weather$min[thirty.year.normal], 
-                          list(day = weather$day[thirty.year.normal],
-                             month = weather$month[thirty.year.normal]), mean)
-
-colnames(normal.temps) <- c("day", "month", "min")
-
-normal.temps$max <- aggregate(weather$max[thirty.year.normal], 
-                              list(day = weather$day[thirty.year.normal],
-                                 month = weather$month[thirty.year.normal]), 
-                                 mean)[, 3]
+last.twelve <- filter(weather, date >= date[last.day] - 364) %>%
+               select(date, year, month, day, min, max, PRCP, SNOW) %>%
+               rename(precip = PRCP, snow = SNOW) %>%
+               mutate(precip.trail = 
+                        rollmean(precip, 3, fill = NA, align = "right")) %>%
+               mutate(temp = (min + max) / 2) %>%
+               mutate(cdd.65 = ifelse(temp > 65, temp - 65, 0)) %>%
+               mutate(hdd.65 = ifelse(temp < 65, 65 - temp, 0))
 
 
-normal.degree.days <- aggregate(weather$hdd.65[thirty.year.normal], 
-                                list(day = weather$day[thirty.year.normal],
-                                   month = weather$month[thirty.year.normal]), 
-                                   mean)
-
-colnames(normal.degree.days) <- c("day", "month", "hdd.65")
+normal.temps <- filter(weather, year >= 1984, year <= 2013) %>%
+                group_by(month, day) %>%
+                summarise(max.normal = mean(max), min.normal = mean(min)) %>%
+                mutate(norm = (max.normal + min.normal) / 2)
 
 
-normal.degree.days$cdd.65 <- aggregate(weather$cdd.65[thirty.year.normal], 
-                               list(day = weather$day[thirty.year.normal],
-                                  month = weather$month[thirty.year.normal]), 
-                                       mean)[, 3]
+normal.degree.days <- filter(weather, year >= 1984, year <= 2013) %>%
+                      group_by(month, day) %>%
+                      summarise(hdd.65 = mean(hdd.65), cdd.65 = mean(cdd.65)) %>%
+                      gather("type", "normal", hdd.65, cdd.65)
 
-
-normal.degree.days <-
-  normal.degree.days[c(which(normal.degree.days$month > current.month), 
-                       which(normal.degree.days$month <=  current.month)), ]
 
 
 # I want to re-organize the normal.temps frame so that it's easier to merge
 # with the last.twelve data frame.
 
-normal.temps <- normal.temps[c(which(normal.temps$month > current.month), 
-                               which(normal.temps$month <=  current.month)), ]
+last.twelve <- left_join(last.twelve, normal.temps, 
+                         by = c("month" = "month", "day" = "day"))
 
-last.twelve$temp <- apply(cbind(last.twelve$min, last.twelve$max), 
-                          1, FUN = mean)
-
-last.twelve$norm <- apply(cbind(normal.temps$min, normal.temps$max), 
-                          1, FUN = mean)[-which(normal.temps$month == 2 &
-                                                  normal.temps$day == 29)]
-
-
-last.twelve$min.normal <- normal.temps$min[-which(normal.temps$month == 2 &
-                                                    normal.temps$day == 29)]
-
-last.twelve$max.normal <- normal.temps$max[-which(normal.temps$month == 2 &
-                                                    normal.temps$day == 29)]
 
 
 last.twelve.melt <- 
@@ -152,32 +92,25 @@ this.month <- filter(weather, year >= 1984 & year != 2014) %>%
                                           "2015", "Normal")))
 
 
-min.max.matrix <- 
-  data.frame(temp = 
-               weather$temp[thirty.year.normal][which(
-                 weather$month[thirty.year.normal] == 5)],
-             year = 
-               weather$year[thirty.year.normal][which(
-                 weather$month[thirty.year.normal] == 5)],
-             day = 
-               weather$day[thirty.year.normal][which(
-                 weather$month[thirty.year.normal] == 5)])
+min.max.matrix <- select(weather, year, month, day, temp) %>%
+                  filter(year >= 1984, year <=2013) %>%
+                  filter(month == 5) %>%
+                  group_by(year) %>%
+                  summarise(max = max(temp), min = min(temp))
 
-min.max.matrix <- acast(min.max.matrix, day ~ year, value.var = "temp")
+mean(min.max.matrix$max)
+mean(min.max.matrix$min)
 
-mean(apply(min.max.matrix, MARGIN = 2, FUN = min))
-mean(apply(min.max.matrix, MARGIN = 2, FUN = max))
+# The following left_join throws a warning about factor levels, but I think
+# it's mistaken.
 
+degree.days <- select(last.twelve, date, year, month, day, hdd.65, cdd.65) %>%
+               gather("type", "actual", -(date:day)) %>%
+               left_join(normal.degree.days, 
+                         by = c("day" = "day", 
+                               "month" = "month", 
+                               "type" = "type"))
 
-
-degree.days.3 <- filter(normal.degree.days, day != 29 | month != 2) %>%
-                 select(hdd.65, cdd.65) %>%
-                 rename(hdd = hdd.65, cdd = cdd.65) %>%
-                 mutate(date = last.twelve[, 1]) %>%
-                 gather("type", "normal", -date) %>%
-                 mutate(act.value = c(
-                      ifelse(last.twelve$temp < 65, 65 - last.twelve$temp, 0),
-                      ifelse(last.twelve$temp > 65, last.twelve$temp - 65, 0)))
 
 # Some summary stats.
 
@@ -233,11 +166,11 @@ temps.plot <-
   scale_x_date(breaks = "1 month", labels = date_format("%B"))
 
 
-degree.days.3.plot <-
+degree.days.plot <-
   
-  ggplot(degree.days.3, aes(x = date)) +
+  ggplot(degree.days, aes(x = date)) +
   geom_area(aes(y = normal, fill = type), alpha = 0.8) +
-  geom_line(aes(y = act.value, color = type), size = 1, alpha = 0.5) +
+  geom_line(aes(y = actual, color = type), size = 1, alpha = 0.5) +
   scale_fill_manual(values = c("lightblue", "pink")) +
   scale_color_manual(values = c("darkblue", "darkred")) +
   theme(panel.background = element_rect(fill = "white"),
@@ -254,6 +187,6 @@ degree.days.3.plot <-
   
 grid.newpage()
 pushViewport(viewport(layout = grid.layout(21, 2)))
-print(degree.days.3.plot, vp = vplayout((1:7), (1:2)))
+print(degree.days.plot, vp = vplayout((1:7), (1:2)))
 print(temps.plot, vp = vplayout((8:14), (1:2)))
 print(density.plot, vp = vplayout((15:21), 1))
