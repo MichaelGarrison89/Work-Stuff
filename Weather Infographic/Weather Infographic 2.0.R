@@ -41,8 +41,8 @@ CalculateLagMean <- function(x, lag){
   
 }
 
-# I pulled this function from Hadley Whickam's GitHub. I'll use it at the end
-# to create the infographic.
+# I pulled the following function from Hadley Whickam's GitHub. I'll use it at
+# the end to create the infographic.
 
 
 vplayout <- function(x, y){
