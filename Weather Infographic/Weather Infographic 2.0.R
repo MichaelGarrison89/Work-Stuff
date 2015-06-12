@@ -21,7 +21,7 @@ vplayout <- function(x, y){
 }
 
 # We import the weather data, then clean it up a bit before adding temperature,
-# converting to Fahrenheit, and adding cdd.65's and hdd.65's.
+# converting to Fahrenheit from Celsius, and adding cdd.65's and hdd.65's.
 
 
 weather <- read.csv("Logan Since 1936.csv") %>%         
@@ -57,8 +57,9 @@ last.twelve <- filter(weather, date >= date[last.day] - 364) %>%
 
 normal.temps <- filter(weather, year >= 1984, year <= 2013) %>%
                 group_by(month, day) %>%
-                summarise(max.normal = mean(max), min.normal = mean(min)) %>%
-                mutate(norm = (max.normal + min.normal) / 2)
+                summarise(max.normal = mean(max), 
+                          min.normal = mean(min),
+                          norm = mean((max + min) / 2))
 
 
 normal.degree.days <- filter(weather, year >= 1984, year <= 2013) %>%
