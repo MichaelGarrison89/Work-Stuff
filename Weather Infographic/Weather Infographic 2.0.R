@@ -5,7 +5,6 @@ setwd("K:/ELF/Deptdata/Yankee Gas/2015/Monthly Variance/New S&R Graphs/Weather S
 library("grid", lib.loc="C:/Program Files/R/R-3.1.3/library")
 library("gdata", lib.loc="C:/Program Files/R/R-3.1.3/library")
 library("ggplot2", lib.loc="C:/Program Files/R/R-3.1.3/library")
-library("gtools", lib.loc="C:/Program Files/R/R-3.1.3/library")
 library("scales", lib.loc="C:/Program Files/R/R-3.1.3/library")
 library("tidyr", lib.loc="C:/Program Files/R/R-3.1.3/library")
 library("dplyr", lib.loc="C:/Program Files/R/R-3.1.3/library")
@@ -43,7 +42,8 @@ thirty.year.normal <- which(weather$year >= 1984 & weather$year <= 2013)
 last.year          <- (last.day - 364):last.day
 
 
-# We want a data frame from the last 12 months.
+# We want a data frame from the last 12 months for actual and normal
+# temperatures and cooling / heating degree days.
 
 last.twelve <- filter(weather, date >= date[last.day] - 364) %>%
                select(date, year, month, day, min, max, PRCP, SNOW) %>%
@@ -69,8 +69,8 @@ normal.degree.days <- filter(weather, year >= 1984, year <= 2013) %>%
 
 
 
-# I want to re-organize the normal.temps frame so that it's easier to merge
-# with the last.twelve data frame.
+# Combining the last.twelve and normal.temps data frames will make it easy to
+# show actual temperature vs. normal. Same idea for the degree days.
 
 last.twelve <- left_join(last.twelve, normal.temps, 
                          by = c("month" = "month", "day" = "day"))
@@ -84,7 +84,19 @@ last.twelve.melt <-
           mutate(t.max = ifelse(variable == "temp", last.twelve$max, 0)) 
 
 
+# The following left_join throws a warning about factor levels, but I think
+# it's mistaken.
 
+
+degree.days <- select(last.twelve, date, year, month, day, hdd.65, cdd.65) %>%
+               gather("type", "actual", -(date:day)) %>%
+               left_join(normal.degree.days, 
+                        by = c("day" = "day", 
+                               "month" = "month", 
+                               "type" = "type"))
+
+
+# This data frame will feed our density plot.
 
 this.month <- filter(weather, year >= 1984 & year != 2014) %>%
               filter(month == current.month) %>%
@@ -92,6 +104,8 @@ this.month <- filter(weather, year >= 1984 & year != 2014) %>%
               mutate(time = factor(ifelse(year == current.year, 
                                           "2015", "Normal")))
 
+
+# We'll pull out some summary stats.
 
 min.max.matrix <- select(weather, year, month, day, temp) %>%
                   filter(year >= 1984, year <=2013) %>%
@@ -102,19 +116,6 @@ min.max.matrix <- select(weather, year, month, day, temp) %>%
 mean(min.max.matrix$max)
 mean(min.max.matrix$min)
 
-# The following left_join throws a warning about factor levels, but I think
-# it's mistaken.
-
-degree.days <- select(last.twelve, date, year, month, day, hdd.65, cdd.65) %>%
-               gather("type", "actual", -(date:day)) %>%
-               left_join(normal.degree.days, 
-                         by = c("day" = "day", 
-                               "month" = "month", 
-                               "type" = "type"))
-
-
-# Some summary stats.
-
 group_by(this.month, time) %>%
   summarise(mean = mean(temp), median = median(temp))
 
@@ -122,6 +123,8 @@ group_by(this.month, time) %>%
 filter(degree.days.3, as.numeric(getMonth(date)) == current.month) %>%
   group_by(type) %>%
   summarise(act. = sum(act.value), norm. = sum(normal))
+
+
 
 # And now we'll build the plots.
 
