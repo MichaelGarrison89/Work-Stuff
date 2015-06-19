@@ -45,20 +45,18 @@ last.year          <- (last.day - 364):last.day
 # temperatures and cooling / heating degree days.
 
 last.twelve <- filter(weather, date >= date[last.day] - 364) %>%
-               select(date, year, month, day, min, max, PRCP, SNOW) %>%
+               select(date, year, month, day, min, max, PRCP, 
+                      SNOW, temp, cdd.65, hdd.65) %>%
                rename(precip = PRCP, snow = SNOW) %>%
                mutate(precip.trail = 
-                        rollmean(precip, 3, fill = NA, align = "right")) %>%
-               mutate(temp = (min + max) / 2) %>%
-               mutate(cdd.65 = ifelse(temp > 65, temp - 65, 0)) %>%
-               mutate(hdd.65 = ifelse(temp < 65, 65 - temp, 0))
+                        rollmean(precip, 3, fill = NA, align = "right"))
 
 
 normal.temps <- filter(weather, year >= 1984, year <= 2013) %>%
                 group_by(month, day) %>%
                 summarise(max.normal = mean(max), 
                           min.normal = mean(min),
-                          norm = mean((max + min) / 2))
+                          norm = mean(temp))
 
 
 normal.degree.days <- filter(weather, year >= 1984, year <= 2013) %>%
@@ -119,9 +117,9 @@ group_by(this.month, time) %>%
   summarise(mean = mean(temp), median = median(temp))
 
 
-filter(degree.days.3, as.numeric(getMonth(date)) == current.month) %>%
+filter(degree.days, month == current.month) %>%
   group_by(type) %>%
-  summarise(act. = sum(act.value), norm. = sum(normal))
+  summarise(act. = sum(actual), norm. = sum(normal))
 
 
 
@@ -167,6 +165,27 @@ temps.plot <-
   coord_cartesian(xlim = as.Date(c("2014-06-01", "2015-05-31")),
                   ylim = c(-10, 110)) +
   scale_x_date(breaks = "1 month", labels = date_format("%B"))
+
+
+temps.plot.no.precip <-
+  
+  ggplot(last.twelve.melt, 
+         aes(x = date, y = value, color = variable)) + 
+  geom_ribbon(aes(ymin = t.min, ymax = t.max), fill = "lightgreen") +
+  geom_line(lwd = 0.4) + 
+  labs(y = "Temperature", x = NULL,
+       title = "Daily Temperatures") +
+  theme(panel.background = element_rect(fill = "white"),
+        panel.grid.major = element_line(color = "grey"),
+        plot.title = element_text(size = 10)) +
+  scale_color_manual(values = 
+                       c("lightgreen", "black", "black", "lightgreen")) +
+  guides(color = FALSE, size = FALSE, alpha = FALSE) +
+  scale_y_continuous(breaks = c(seq(-5, 95, 20), 0)) +
+  coord_cartesian(xlim = as.Date(c("2014-06-01", "2015-05-31")),
+                  ylim = c(-10, 110)) +
+  scale_x_date(breaks = "1 month", labels = date_format("%B"))
+
 
 
 degree.days.plot <-
