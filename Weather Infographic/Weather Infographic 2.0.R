@@ -1,6 +1,5 @@
 # The purpose of this program is to set up a cool monthly weather data slide.
 
-setwd("K:/ELF/Deptdata/Yankee Gas/2015/Monthly Variance/New S&R Graphs/Weather Slide")
 
 library("grid", lib.loc="C:/Program Files/R/R-3.1.3/library")
 library("gdata", lib.loc="C:/Program Files/R/R-3.1.3/library")
