@@ -1,4 +1,5 @@
-
+# There has to be a better way to generate normals quickly. 
+# This is what I came up with
 
 weather <- read.csv("nstar weather history.csv", header = TRUE) %>%
            filter(year >= 1985)
@@ -55,5 +56,9 @@ providence.cdd.normal <- select(providence.cdds, -(year:providence.temp)) %>%
                          group_by(month, day) %>%
                          summarise_each(funs(mean))
 
+<<<<<<< HEAD
 colnames(providence.cdd.normal) <- c("month", "day", 
                                      paste("b", seq(1, 100), sep = ""))
+=======
+colnames(providence.cdd.normal) <- c("month", "day", seq(1, 100))
+>>>>>>> origin/master
