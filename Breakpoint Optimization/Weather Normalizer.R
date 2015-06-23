@@ -29,7 +29,8 @@ boston.hdd.normal <- select(boston.hdds, -(year:boston.temp)) %>%
                      group_by(month, day) %>%
                      summarise_each(funs(mean))
 
-colnames(boston.hdd.normal) <- c("month", "day", seq(1, 100))
+colnames(boston.hdd.normal) <- c("month", "day", 
+                                 paste("b", seq(1, 100), sep = ""))
 
 
 
@@ -37,14 +38,16 @@ boston.cdd.normal <- select(boston.cdds, -(year:boston.temp)) %>%
                      group_by(month, day) %>%
                      summarise_each(funs(mean))
 
-colnames(boston.cdd.normal) <- c("month", "day", seq(1, 100))
+colnames(boston.cdd.normal) <- c("month", "day", 
+                                 paste("b", seq(1, 100), sep = ""))
 
 
 providence.hdd.normal <- select(providence.hdds, -(year:providence.temp)) %>%
                          group_by(month, day) %>%
                          summarise_each(funs(mean))
 
-colnames(providence.hdd.normal) <- c("month", "day", seq(1, 100))
+colnames(providence.hdd.normal) <- c("month", "day", 
+                                     paste("b", seq(1, 100), sep = ""))
 
 
 
@@ -52,4 +55,5 @@ providence.cdd.normal <- select(providence.cdds, -(year:providence.temp)) %>%
                          group_by(month, day) %>%
                          summarise_each(funs(mean))
 
-colnames(providence.cdd.normal) <- c("month", "day", seq(1, 100))
+colnames(providence.cdd.normal) <- c("month", "day", 
+                                     paste("b", seq(1, 100), sep = ""))
