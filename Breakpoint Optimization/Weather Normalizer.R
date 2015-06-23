@@ -1,4 +1,5 @@
-
+# There has to be a better way to generate normals quickly. 
+# This is what I came up with
 
 weather <- read.csv("nstar weather history.csv", header = TRUE) %>%
            filter(year >= 1985)
