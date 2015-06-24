@@ -56,9 +56,6 @@ providence.cdd.normal <- select(providence.cdds, -(year:providence.temp)) %>%
                          group_by(month, day) %>%
                          summarise_each(funs(mean))
 
-<<<<<<< HEAD
+
 colnames(providence.cdd.normal) <- c("month", "day", 
                                      paste("b", seq(1, 100), sep = ""))
-=======
-colnames(providence.cdd.normal) <- c("month", "day", seq(1, 100))
->>>>>>> origin/master
