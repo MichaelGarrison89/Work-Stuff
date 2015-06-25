@@ -73,7 +73,8 @@ if(sum(mars$dirs == 1)  > 0 &
     lm(beco.res ~ boston.temp, data = 
          filter(load.full, boston.temp <= dead.top & boston.temp >= dead.bot))
   
-    if(summary(dead.band.regress)$coefficients[2, 4] > 0.1){
+    if(dead.top > dead.bot &
+       summary(dead.band.regress)$coefficients[2, 4] > 0.1){
       
       load <- 
         filter(load.full, boston.temp > dead.top | boston.temp < dead.bot)
