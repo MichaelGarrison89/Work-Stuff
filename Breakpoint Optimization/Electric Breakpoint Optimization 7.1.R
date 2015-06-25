@@ -10,40 +10,98 @@ library("gridExtra", lib.loc="C:/Program Files/R/R-3.1.3/library")
 library("ggplot2", lib.loc="C:/Program Files/R/R-3.1.3/library")
 library("dplyr", lib.loc="C:/Program Files/R/R-3.1.3/library")
 library("tidyr", lib.loc="C:/Program Files/R/R-3.1.3/library")
+library("earth", lib.loc="C:/Program Files/R/R-3.1.3/library")
 
 
 
-load <- read.csv("NSTAR Test Data.csv") %>%
-        mutate(date = as.Date(date, "%m/%d/%Y")) %>%
-        mutate(sunday = ifelse(weekdays(date) == "Sunday", 1, 0)) %>%
-        mutate(monday = ifelse(weekdays(date) == "Monday", 1, 0)) %>%
-        mutate(tuesday = ifelse(weekdays(date) == "Tuesday", 1, 0)) %>%
-        mutate(wednesday = ifelse(weekdays(date) == "Wednesday", 1, 0)) %>%
-        mutate(thursday = ifelse(weekdays(date) == "Thursday", 1, 0)) %>%
-        mutate(friday = ifelse(weekdays(date) == "Friday", 1, 0)) %>%
-        mutate(saturday = ifelse(weekdays(date) == "Saturday", 1, 0)) %>%
-        mutate(weekday = ifelse(weekdays(date) == "Saturday" |
-                                weekdays(date) == "Sunday", 0, 1)) %>%
+load.full <- read.csv("NSTAR Test Data.csv") %>%
+             mutate(date = as.Date(date, "%m/%d/%Y")) %>%
+             mutate(sunday = ifelse(weekdays(date) == "Sunday", 1, 0)) %>%
+             mutate(monday = ifelse(weekdays(date) == "Monday", 1, 0)) %>%
+             mutate(tuesday = ifelse(weekdays(date) == "Tuesday", 1, 0)) %>%
+             mutate(wednesday = ifelse(weekdays(date) == "Wednesday", 1, 0)) %>%
+             mutate(thursday = ifelse(weekdays(date) == "Thursday", 1, 0)) %>%
+             mutate(friday = ifelse(weekdays(date) == "Friday", 1, 0)) %>%
+             mutate(saturday = ifelse(weekdays(date) == "Saturday", 1, 0)) %>%
+             mutate(weekday = ifelse(weekdays(date) == "Saturday" |
+                                     weekdays(date) == "Sunday", 0, 1)) %>%
   
   # Now the monthly variables
-        mutate(month = factor(months(date), levels = 
-                                c("January", "February", "March", 
-                                         "April", "May", "June", "July", 
-                                         "August", "September", "October", 
-                                         "November", "December"))) %>%
-        mutate(jan = ifelse(month == "January", 1, 0)) %>%
-        mutate(feb = ifelse(month == "February", 1, 0)) %>%
-        mutate(mar = ifelse(month == "March", 1, 0)) %>%
-        mutate(apr = ifelse(month == "April", 1, 0)) %>%
-        mutate(may = ifelse(month == "May", 1, 0)) %>%
-        mutate(jun = ifelse(month == "June", 1, 0)) %>%
-        mutate(jul = ifelse(month == "July", 1, 0)) %>%
-        mutate(aug = ifelse(month == "August", 1, 0)) %>%
-        mutate(sep = ifelse(month == "September", 1, 0)) %>%
-        mutate(oct = ifelse(month == "October", 1, 0)) %>%
-        mutate(nov = ifelse(month == "November", 1, 0)) %>%
-        mutate(dec = ifelse(month == "December", 1, 0))
+             mutate(month = factor(months(date), levels = 
+                                     c("January", "February", "March", 
+                                       "April", "May", "June", "July", 
+                                       "August", "September", "October", 
+                                       "November", "December"))) %>%
+             mutate(jan = ifelse(month == "January", 1, 0)) %>%
+             mutate(feb = ifelse(month == "February", 1, 0)) %>%
+             mutate(mar = ifelse(month == "March", 1, 0)) %>%
+             mutate(apr = ifelse(month == "April", 1, 0)) %>%
+             mutate(may = ifelse(month == "May", 1, 0)) %>%
+             mutate(jun = ifelse(month == "June", 1, 0)) %>%
+             mutate(jul = ifelse(month == "July", 1, 0)) %>%
+             mutate(aug = ifelse(month == "August", 1, 0)) %>%
+             mutate(sep = ifelse(month == "September", 1, 0)) %>%
+             mutate(oct = ifelse(month == "October", 1, 0)) %>%
+             mutate(nov = ifelse(month == "November", 1, 0)) %>%
+             mutate(dec = ifelse(month == "December", 1, 0))
 
+
+# We start with a global MARS analysis. This will show us, in general, how
+# customers respond to weather. More importantly, we will use it to identify
+# a "dead band" in which customers largely DO NOT respond to weather. We will
+# remove the dead band from the data set before we continue our analysis.
+
+
+mars <- earth(formula = beco.res ~ boston.temp, data = load.full)
+
+# Here we check to see if there is any overlap between branches -- to use
+# industry jargon: we'll check if we have a cdd breakpoint below at least one
+# hdd breakpoint.
+
+# If we do have an overlap, it's likely there's a deadband. We'll run a
+# regression on the deadband data set. If the temperature variable is
+# insignificant, we'll throw out the deadband data points.
+
+if(sum(mars$dirs == 1)  > 0 &
+   sum(mars$dirs == -1) > 0){
+  
+
+  dead.top <- max(mars$cuts[which(mars$dirs == -1)])
+  dead.bot <- min(mars$cuts[which(mars$dirs ==  1)])
+  
+  dead.band.regress <-
+    lm(beco.res ~ boston.temp, data = 
+         filter(load.full, boston.temp <= dead.top & boston.temp >= dead.bot))
+  
+    if(summary(dead.band.regress)$coefficients[2, 4] > 0.1){
+      
+      load <- 
+        filter(load.full, boston.temp > dead.top | boston.temp < dead.bot)
+      
+    } else{
+      
+      load <- load.full
+    }
+  
+  
+  
+} else{
+  
+  load <- load.full
+}
+
+load.full <- mutate(load.full,
+                    dead.band = ifelse(boston.temp > dead.top |
+                                       boston.temp < dead.bot, 1, 0))
+
+mars.plot <-
+  ggplot(load.full, aes(x = boston.temp, y = beco.res)) +
+  geom_point(aes(color = factor(dead.band)), size = 2) +
+  geom_line(y = predict(mars), color = "red", size = 1.5) +
+  theme_minimal() +
+  guides(color = FALSE, size = FALSE) +
+  scale_color_manual(values = c("darkgrey", "black")) +
+  labs(y = "Volumes", x = "Temperature", title = "beco.res vs. boston.temp")
 
 
 # In this section we want to group the months into groups wherein each month
@@ -343,10 +401,12 @@ colnames(test.break.1) <- c("SSR", "breakpoint", "ordered",
 if(base.regress$coefficients[2] > 0){
   
   flip <- -1
+  bot  <- max(bot, dead.top)
   
 } else{
   
   flip <- 1
+  top  <- min(top, dead.bot)
 }
 
 
@@ -481,7 +541,7 @@ if(flip == -1){
   
   load.group.1 <- 
     mutate(load.group.1, 
-           w.0 = ifelse(break.1 == 0, boston.temp - min(boston.temp), 0)) %>%
+           w.0 = ifelse(break.1 == 0, boston.temp - dead.top, 0)) %>%
     mutate(w.1 = ifelse(break.1 == 1, boston.temp - break.1.temp, 0))
 
   
@@ -489,7 +549,7 @@ if(flip == -1){
   
   load.group.1 <- 
     mutate(load.group.1, 
-           w.0 = ifelse(break.1 == 0, max(boston.temp) - boston.temp, 0)) %>%
+           w.0 = ifelse(break.1 == 0, dead.bot - boston.temp, 0)) %>%
     mutate(w.1 = ifelse(break.1 == 1, break.1.temp - boston.temp, 0))
   
 }
@@ -521,13 +581,13 @@ results.matrix.2.beco.res[1, 4] <- summary(regress.final.1.b)$coefficients[2, 4]
 if(flip == 1){
   
   results.matrix.2.beco.res[1, 5] <- "Heating"
-  results.matrix.2.beco.res[1, 8] <- max(load.group.1$boston.temp)
+  results.matrix.2.beco.res[1, 8] <- dead.bot
   results.matrix.2.beco.res[1, 9] <- results.matrix[1, 2]
   
 } else {
   
   results.matrix.2.beco.res[1, 5] <- "Cooling"
-  results.matrix.2.beco.res[1, 8] <- min(load.group.1$boston.temp)
+  results.matrix.2.beco.res[1, 8] <- dead.top
   results.matrix.2.beco.res[1, 9] <- results.matrix[1, 2]
   
 }
@@ -588,10 +648,12 @@ colnames(test.break.2) <- c("SSR", "breakpoint", "ordered",
 if(base.regress$coefficients[2] > 0){
   
   flip <- -1
+  bot  <- max(bot, dead.top)
   
 } else{
   
   flip <- 1
+  top  <- min(top, dead.bot)
 }
 
 
@@ -726,7 +788,7 @@ if(flip == -1){
   
   load.group.2 <- 
     mutate(load.group.2, 
-           w.0 = ifelse(break.1 == 0, boston.temp - min(boston.temp), 0)) %>%
+           w.0 = ifelse(break.1 == 0, boston.temp - dead.top, 0)) %>%
     mutate(w.1 = ifelse(break.1 == 1, boston.temp - break.2.temp, 0))
   
   
@@ -734,7 +796,7 @@ if(flip == -1){
   
   load.group.2 <- 
     mutate(load.group.2, 
-           w.0 = ifelse(break.1 == 0, max(boston.temp) - boston.temp, 0)) %>%
+           w.0 = ifelse(break.1 == 0, dead.bot - boston.temp, 0)) %>%
     mutate(w.1 = ifelse(break.1 == 1, break.2.temp - boston.temp, 0))
   
 }
@@ -766,13 +828,13 @@ results.matrix.2.beco.res[2, 4] <- summary(regress.final.2.b)$coefficients[2, 4]
 if(flip == 1){
   
   results.matrix.2.beco.res[2, 5] <- "Heating"
-  results.matrix.2.beco.res[2, 8] <- max(load.group.2$boston.temp)
+  results.matrix.2.beco.res[2, 8] <- dead.bot
   results.matrix.2.beco.res[2, 9] <- results.matrix[2, 2]
   
 } else {
   
   results.matrix.2.beco.res[2, 5] <- "Cooling"
-  results.matrix.2.beco.res[2, 8] <- min(load.group.2$boston.temp)
+  results.matrix.2.beco.res[2, 8] <- dead.top
   results.matrix.2.beco.res[2, 9] <- results.matrix[2, 2]
   
 }
@@ -836,10 +898,12 @@ colnames(test.break.3) <- c("SSR", "breakpoint", "ordered",
 if(base.regress$coefficients[2] > 0){
   
   flip <- -1
+  bot  <- max(bot, dead.top)
   
 } else{
   
   flip <- 1
+  top  <- min(top, dead.bot)
 }
 
 
@@ -974,7 +1038,7 @@ if(flip == -1){
   
   load.group.3 <- 
     mutate(load.group.3, 
-           w.0 = ifelse(break.1 == 0, boston.temp - min(boston.temp), 0)) %>%
+           w.0 = ifelse(break.1 == 0, boston.temp - dead.top, 0)) %>%
     mutate(w.1 = ifelse(break.1 == 1, boston.temp - break.3.temp, 0))
   
   
@@ -982,7 +1046,7 @@ if(flip == -1){
   
   load.group.3 <- 
     mutate(load.group.3, 
-           w.0 = ifelse(break.1 == 0, max(boston.temp) - boston.temp, 0)) %>%
+           w.0 = ifelse(break.1 == 0, dead.bot - boston.temp, 0)) %>%
     mutate(w.1 = ifelse(break.1 == 1, break.3.temp - boston.temp, 0))
   
 }
@@ -1014,13 +1078,13 @@ results.matrix.2.beco.res[3, 4] <- summary(regress.final.3.b)$coefficients[2, 4]
 if(flip == 1){
   
   results.matrix.2.beco.res[3, 5] <- "Heating"
-  results.matrix.2.beco.res[3, 8] <- max(load.group.3$boston.temp)
+  results.matrix.2.beco.res[3, 8] <- dead.bot
   results.matrix.2.beco.res[3, 9] <- results.matrix[3, 2]
   
 } else {
   
   results.matrix.2.beco.res[3, 5] <- "Cooling"
-  results.matrix.2.beco.res[3, 8] <- min(load.group.3$boston.temp)
+  results.matrix.2.beco.res[3, 8] <- dead.top
   results.matrix.2.beco.res[3, 9] <- results.matrix[3, 2]
   
 }
@@ -1080,10 +1144,12 @@ colnames(test.break.4) <- c("SSR", "breakpoint", "ordered",
 if(base.regress$coefficients[2] > 0){
   
   flip <- -1
+  bot  <- max(bot, dead.top)
   
 } else{
   
   flip <- 1
+  top  <- min(top, dead.bot)
 }
 
 
@@ -1218,7 +1284,7 @@ if(flip == -1){
   
   load.group.4 <- 
     mutate(load.group.4, 
-           w.0 = ifelse(break.1 == 0, boston.temp - min(boston.temp), 0)) %>%
+           w.0 = ifelse(break.1 == 0, boston.temp - dead.top, 0)) %>%
     mutate(w.1 = ifelse(break.1 == 1, boston.temp - break.4.temp, 0))
   
   
@@ -1226,7 +1292,7 @@ if(flip == -1){
   
   load.group.4 <- 
     mutate(load.group.4, 
-           w.0 = ifelse(break.1 == 0, max(boston.temp) - boston.temp, 0)) %>%
+           w.0 = ifelse(break.1 == 0, dead.bot - boston.temp, 0)) %>%
     mutate(w.1 = ifelse(break.1 == 1, break.4.temp - boston.temp, 0))
   
 }
@@ -1258,13 +1324,13 @@ results.matrix.2.beco.res[4, 4] <- summary(regress.final.4.b)$coefficients[2, 4]
 if(flip == 1){
   
   results.matrix.2.beco.res[4, 5] <- "Heating"
-  results.matrix.2.beco.res[4, 8] <- max(load.group.4$boston.temp)
+  results.matrix.2.beco.res[4, 8] <- dead.bot
   results.matrix.2.beco.res[4, 9] <- results.matrix[4, 2]
   
 } else {
   
   results.matrix.2.beco.res[4, 5] <- "Cooling"
-  results.matrix.2.beco.res[4, 8] <- min(load.group.4$boston.temp)
+  results.matrix.2.beco.res[4, 8] <- dead.top
   results.matrix.2.beco.res[4, 9] <- results.matrix[4, 2]
   
 }
@@ -1331,10 +1397,12 @@ colnames(test.break.5) <- c("SSR", "breakpoint", "ordered",
 if(base.regress$coefficients[2] > 0){
   
   flip <- -1
+  bot  <- max(bot, dead.top)
   
 } else{
   
   flip <- 1
+  top  <- min(top, dead.bot)
 }
 
 
@@ -1469,7 +1537,7 @@ if(flip == -1){
   
   load.group.5 <- 
     mutate(load.group.5, 
-           w.0 = ifelse(break.1 == 0, boston.temp - min(boston.temp), 0)) %>%
+           w.0 = ifelse(break.1 == 0, boston.temp - dead.top, 0)) %>%
     mutate(w.1 = ifelse(break.1 == 1, boston.temp - break.5.temp, 0))
   
   
@@ -1477,7 +1545,7 @@ if(flip == -1){
   
   load.group.5 <- 
     mutate(load.group.5, 
-           w.0 = ifelse(break.1 == 0, max(boston.temp) - boston.temp, 0)) %>%
+           w.0 = ifelse(break.1 == 0, dead.bot - boston.temp, 0)) %>%
     mutate(w.1 = ifelse(break.1 == 1, break.5.temp - boston.temp, 0))
   
 }
@@ -1509,13 +1577,13 @@ results.matrix.2.beco.res[5, 4] <- summary(regress.final.5.b)$coefficients[2, 4]
 if(flip == 1){
   
   results.matrix.2.beco.res[5, 5] <- "Heating"
-  results.matrix.2.beco.res[5, 8] <- max(load.group.5$boston.temp)
+  results.matrix.2.beco.res[5, 8] <- dead.bot
   results.matrix.2.beco.res[5, 9] <- results.matrix[5, 2]
   
 } else {
   
   results.matrix.2.beco.res[5, 5] <- "Cooling"
-  results.matrix.2.beco.res[5, 8] <- min(load.group.5$boston.temp)
+  results.matrix.2.beco.res[5, 8] <- dead.top
   results.matrix.2.beco.res[5, 9] <- results.matrix[5, 2]
   
 }
@@ -1575,10 +1643,12 @@ colnames(test.break.6) <- c("SSR", "breakpoint", "ordered",
 if(base.regress$coefficients[2] > 0){
   
   flip <- -1
+  bot  <- max(bot, dead.top)
   
 } else{
   
   flip <- 1
+  top  <- min(top, dead.bot)
 }
 
 
@@ -1713,7 +1783,7 @@ if(flip == -1){
   
   load.group.6 <- 
     mutate(load.group.6, 
-           w.0 = ifelse(break.1 == 0, boston.temp - min(boston.temp), 0)) %>%
+           w.0 = ifelse(break.1 == 0, boston.temp - dead.top, 0)) %>%
     mutate(w.1 = ifelse(break.1 == 1, boston.temp - break.6.temp, 0))
   
   
@@ -1721,7 +1791,7 @@ if(flip == -1){
   
   load.group.6 <- 
     mutate(load.group.6, 
-           w.0 = ifelse(break.1 == 0, max(boston.temp) - boston.temp, 0)) %>%
+           w.0 = ifelse(break.1 == 0, dead.bot - boston.temp, 0)) %>%
     mutate(w.1 = ifelse(break.1 == 1, break.6.temp - boston.temp, 0))
   
 }
@@ -1753,13 +1823,13 @@ results.matrix.2.beco.res[6, 4] <- summary(regress.final.6.b)$coefficients[2, 4]
 if(flip == 1){
   
   results.matrix.2.beco.res[6, 5] <- "Heating"
-  results.matrix.2.beco.res[6, 8] <- max(load.group.6$boston.temp)
+  results.matrix.2.beco.res[6, 8] <- dead.bot
   results.matrix.2.beco.res[6, 9] <- results.matrix[6, 2]
   
 } else {
   
   results.matrix.2.beco.res[6, 5] <- "Cooling"
-  results.matrix.2.beco.res[6, 8] <- min(load.group.6$boston.temp)
+  results.matrix.2.beco.res[6, 8] <- dead.top
   results.matrix.2.beco.res[6, 9] <- results.matrix[6, 2]
   
 }
@@ -1782,6 +1852,8 @@ colnames(results.matrix.2.beco.res) <- c("High Coef.", "Low Coef.",
                                          "Heat / Cool", 
                                          "Low Temp", "High Temp",
                                          "Low Break", "High Break")
+
+
 
 
 
