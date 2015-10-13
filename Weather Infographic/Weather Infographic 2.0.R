@@ -189,7 +189,6 @@ temps.plot.no.precip <-
 
 
 degree.days.plot <-
-  
   ggplot(degree.days, aes(x = date)) +
   geom_area(aes(y = normal, fill = type), alpha = 0.8) +
   geom_line(aes(y = actual, color = type), size = 1, alpha = 0.5) +
