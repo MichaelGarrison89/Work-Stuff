@@ -1,12 +1,5 @@
 
 
-
-
-
-
-
-
-
 consecutive.nineties <-
   weather %>%
   select(-cdd.65, -hdd.65, -min) %>%
@@ -86,6 +79,12 @@ nineties.graph <-
                        labels = c("2014", "Normal", "2015")) +
   labs(x = NULL, y = NULL, fill = NULL, 
        title = NULL)
+
+
+# This function finds all the runs of consecutive numbers and puts them in a matrix. Then
+# it checks for any runs of consecutive "value"; if there aren't any such runs, it returns
+# zero. If there are runs of "value", it returns the longest run. I can use this function to quickly
+# check for the longest runs of 90+ degree days.
 
 
 FindMaxRun <- function(vector, value){
