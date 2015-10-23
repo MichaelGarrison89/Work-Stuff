@@ -88,4 +88,33 @@ nineties.graph <-
        title = NULL)
 
 
+FindMaxRun <- function(vector, value){
   
+  mat       <- cbind(rle(vector)$lengths, rle(vector)$values)
+  
+  positives <- as.matrix(mat[mat[, 2] == value, ])
+  
+  if(length(positives) == 0){
+    
+    return(0)
+    
+  } else{
+    
+    return(max(positives[, 1]))
+    
+  } 
+  
+}
+
+nineties.streaks <-
+  weather %>%
+  select(-cdd.65, -hdd.65, -min) %>%
+  group_by(station) %>%
+  mutate(ninety.plus = ifelse(max >= 90, 1, 0)) %>%
+  filter(year >= 1984, quarter == 3) %>%
+  group_by(station, year) %>%
+  summarize(max.ninety.run = FindMaxRun(ninety.plus, 1)) %>%
+  mutate(time.frame = ifelse(year == 2015, "2015",
+                             ifelse(year == 2014, "2014", "normal"))) %>%
+  group_by(station, time.frame) %>%
+  summarize(avg.max.streak = mean(max.ninety.run))
